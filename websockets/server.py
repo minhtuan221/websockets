@@ -729,21 +729,13 @@ class Serve:
         self._creating_server = creating_server
         self.ws_server = ws_server
 
-    @asyncio.coroutine
-    def __aenter__(self):
-        return (yield from self)
-
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc_value, traceback):
-        self.ws_server.close()
-        yield from self.ws_server.wait_closed()
-
-    def __await__(self):
+    def __iter__(self):                                     # pragma: no cover
+        # Duplicated with __await__ because __iter__ must call coroutines with
+        # yield from to preserve compatibility with Python 3.4 while __await__
+        # must call them with await in Python 3.7.
         server = yield from self._creating_server
         self.ws_server.wrap(server)
         return self.ws_server
-
-    __iter__ = __await__
 
 
 def unix_serve(ws_handler, path, **kwargs):
@@ -767,8 +759,12 @@ def unix_serve(ws_handler, path, **kwargs):
 if sys.version_info[:3] <= (3, 5, 0):                       # pragma: no cover
     @asyncio.coroutine
     def serve(*args, **kwds):
-        return Serve(*args, **kwds).__await__()
+        return Serve(*args, **kwds).__iter__()
     serve.__doc__ = Serve.__doc__
 
 else:
+    from .py35.server import __aenter__, __aexit__, __await__
+    Serve.__aenter__ = __aenter__
+    Serve.__aexit__ = __aexit__
+    Serve.__await__ = __await__
     serve = Serve
